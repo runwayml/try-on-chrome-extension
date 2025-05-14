@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Face Canvas Overlay</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      color: #333;
+      background-color: #f5f5f5;
+    }
+    
+    .container {
+      padding: 16px;
+    }
+    
+    h2 {
+      margin-top: 0;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #ddd;
+    }
+    
+    .section {
+      margin-bottom: 24px;
+      background-color: white;
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    
+    .section-header h2 {
+      margin: 0;
+      padding: 0;
+      border: none;
+    }
+    
+    #drop-area {
+      border: 2px dashed #ccc;
+      border-radius: 8px;
+      padding: 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    
+    #drop-area.highlight {
+      background-color: #e9f5ff;
+      border-color: #4a90e2;
+    }
+    
+    #drop-area p {
+      margin: 0;
+      color: #666;
+    }
+    
+    #preview-container {
+      margin-top: 16px;
+      display: none;
+    }
+    
+    #preview-image {
+      max-width: 100%;
+      border-radius: 4px;
+    }
+    
+    #file-input {
+      display: none;
+    }
+    
+    #wardrobe-container {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    .wardrobe-item {
+      position: relative;
+      overflow: hidden;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+      margin-bottom: 12px;
+      background-color: white;
+    }
+    
+    .wardrobe-item img {
+      width: 100%;
+      object-fit: contain;
+      display: block;
+    }
+    
+    .delete-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 24px;
+      height: 24px;
+      background-color: rgba(255, 255, 255, 0.8);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+      transition: background-color 0.2s;
+      z-index: 10;
+    }
+    
+    .delete-btn:hover {
+      background-color: rgba(255, 0, 0, 0.1);
+    }
+    
+    .delete-btn::before,
+    .delete-btn::after {
+      content: '';
+      position: absolute;
+      width: 14px;
+      height: 2px;
+      background-color: #555;
+      transform: rotate(45deg);
+    }
+    
+    .delete-btn::after {
+      transform: rotate(-45deg);
+    }
+    
+    .empty-wardrobe {
+      text-align: center;
+      padding: 24px;
+      color: #888;
+    }
+    
+    .btn {
+      background-color: #4a90e2;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-top: 12px;
+    }
+    
+    .btn:hover {
+      background-color: #3a7bc8;
+    }
+    
+    .btn-secondary {
+      background-color: #f0f0f0;
+      color: #666;
+      border: 1px solid #ddd;
+      margin-left: 8px;
+    }
+    
+    .btn-secondary:hover {
+      background-color: #e5e5e5;
+    }
+    
+    .preview-controls {
+      display: flex;
+      margin-top: 12px;
+    }
+    
+    /* Loading state styles */
+    .loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0, 0, 0, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+    }
+    
+    .loading-text {
+      color: white;
+      margin-top: 15px;
+      font-weight: bold;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    }
+    
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 5px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 1s ease-in-out infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    /* Image is slightly faded when loading */
+    .is-loading img {
+      opacity: 0.7;
+      filter: grayscale(30%);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="section">
+      <div class="section-header">
+        <h2>My Picture</h2>
+      </div>
+      <div id="drop-area">
+        <input type="file" id="file-input" accept="image/*">
+        <p>Drag & drop an image here<br>or click to select</p>
+      </div>
+      
+      <div id="preview-container">
+        <img id="preview-image" src="" alt="Preview">
+        <div class="preview-controls">
+          <button id="remove-image-btn" class="btn">Remove</button>
+        </div>
+      </div>
+    </div>
+    
+    <div class="section">
+      <div class="section-header">
+        <h2>Wardrobe</h2>
+      </div>
+      
+      <div id="wardrobe-container">
+        <div class="empty-wardrobe">
+          No processed images yet
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Templates -->
+  <template id="wardrobe-item-template">
+    <div class="wardrobe-item">
+      <img src="" alt="Wardrobe item">
+      <div class="delete-btn"></div>
+      <div class="loading-overlay" style="display: none;">
+        <div class="spinner"></div>
+        <div class="loading-text">Processing image...</div>
+      </div>
+    </div>
+  </template>
+  
+  <script src="sidepanel.js"></script>
+</body>
+</html> 
