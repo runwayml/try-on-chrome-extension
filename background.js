@@ -1,10 +1,7 @@
 chrome.runtime.onInstalled.addListener(() => {
-  console.log(
-    "[Runway Virtual Try On] Extension installed, creating context menu"
-  );
   chrome.contextMenus.create({
     id: "try-on-runway",
-    title: "Runway Virtual Try On",
+    title: "Try on with Runway",
     contexts: ["image"],
   });
 });
@@ -12,103 +9,68 @@ chrome.runtime.onInstalled.addListener(() => {
 // Setup sidepanel
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 
-// Helper function to convert Blob to base64
-function blobToBase64(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
-}
-
-chrome.contextMenus.onClicked.addListener((info, tab) => {
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === "try-on-runway") {
-    console.log("[Runway Virtual Try On] Context menu clicked for image");
-
     // Open the side panel
     chrome.sidePanel.open({ tabId: tab.id });
 
     // Wait for next tick to ensure side panel is ready
-    setTimeout(() => {
-      // Get the image URL from context menu
-      const imageUrl = info.srcUrl;
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
-      // Notify the sidepanel that processing has started with the original image URL
-      chrome.runtime.sendMessage({
-        action: "processingStarted",
+    // Get the image URL from context menu
+    const imageUrl = info.srcUrl;
+
+    // Notify the sidepanel that processing has started with the original image URL
+    chrome.runtime.sendMessage({
+      action: "processingStarted",
+      imageUrl: imageUrl,
+    });
+
+    // Send message to content script to handle the image processing
+    chrome.tabs.sendMessage(
+      tab.id,
+      {
+        action: "processImage",
         imageUrl: imageUrl,
-      });
-
-      // Send message to content script to handle the image processing
-      chrome.tabs.sendMessage(
-        tab.id,
-        {
-          action: "processImage",
-          imageUrl: imageUrl,
-        },
-        (response) => {
-          // If successful, save the processed image to wardrobe
-          if (response && response.success && response.processedImageData) {
-            console.log(
-              "[Runway Virtual Try On] Saving processed image to wardrobe"
-            );
-            saveImageToWardrobe(response.processedImageData);
-          } else if (response && response.success) {
-            // Fallback: use the original image if processed data is not available
-            console.log(
-              "[Runway Virtual Try On] No processed image data, fetching original image instead"
-            );
-
-            fetch(imageUrl, { mode: "cors" })
-              .then((response) => {
-                if (!response.ok) {
-                  throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.blob();
-              })
-              .then((blob) => blobToBase64(blob))
-              .then((base64Data) => {
-                saveImageToWardrobe(base64Data);
-              })
-              .catch((error) => {
-                console.error(
-                  "[Runway Virtual Try On] Error fetching original image:",
-                  error
-                );
-                // Notify sidepanel that processing failed
-                chrome.runtime.sendMessage({
-                  action: "processingFailed",
-                  error: error.message,
-                });
+      },
+      (response) => {
+        // If successful, save the processed image to wardrobe
+        if (response && response.success && response.processedImageData) {
+          saveImageToWardrobe(response.processedImageData);
+        } else if (response && response.success) {
+          // Fallback: use the original image if processed data is not available
+          fetch(imageUrl, { mode: "cors" })
+            .then((response) => {
+              if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+              }
+              return response.blob();
+            })
+            .then((blob) => blobToBase64(blob))
+            .then((base64Data) => {
+              saveImageToWardrobe(base64Data);
+            })
+            .catch((error) => {
+              // Notify sidepanel that processing failed
+              chrome.runtime.sendMessage({
+                action: "processingFailed",
+                error: error.message,
               });
-          } else {
-            console.error(
-              "[Runway Virtual Try On] Failed to get processed image data"
-            );
-            // Notify sidepanel that processing failed
-            chrome.runtime.sendMessage({
-              action: "processingFailed",
-              error: response ? response.error : "Unknown error",
             });
-          }
+        } else {
+          // Notify sidepanel that processing failed
+          chrome.runtime.sendMessage({
+            action: "processingFailed",
+            error: response ? response.error : "Unknown error",
+          });
         }
-      );
-    }, 100);
+      }
+    );
   }
 });
 
 // Helper function to save an image to the wardrobe
 function saveImageToWardrobe(imageData) {
-  // Check storage usage
-  chrome.storage.local.getBytesInUse(null, (bytesInUse) => {
-    console.log(
-      "[Runway Virtual Try On] Chrome storage usage:",
-      bytesInUse,
-      "bytes"
-    );
-  });
-
   // Create a single wardrobe item with the new image
   const wardrobeItem = {
     id: "wardrobe-" + Date.now(),
@@ -118,7 +80,6 @@ function saveImageToWardrobe(imageData) {
 
   // Save only this item to storage, replacing any existing ones
   chrome.storage.local.set({ wardrobeImages: [wardrobeItem] }, () => {
-    console.log("[Runway Virtual Try On] Image saved to wardrobe");
     // Notify sidepanel that wardrobe has updated
     chrome.runtime.sendMessage({
       action: "wardrobeUpdated",
@@ -128,14 +89,7 @@ function saveImageToWardrobe(imageData) {
 
 // Listen for messages from content script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log(
-    "[Runway Virtual Try On] Background received message:",
-    message.action
-  );
-
   if (message.action === "fetchImage") {
-    console.log("[Runway Virtual Try On] Fetching image from URL");
-
     fetch(message.imageUrl, { mode: "cors" })
       .then((response) => {
         if (!response.ok) {
@@ -153,10 +107,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         });
       })
       .catch((error) => {
-        console.error(
-          "[Runway Virtual Try On] Error fetching or processing image:",
-          error
-        );
         sendResponse({ success: false, error: error.message });
       });
 
@@ -164,3 +114,67 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 });
+
+// Helper function to convert Blob to base64
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function startVideoGeneration(imageUrl, apiKey) {
+  const response = await fetch(
+    "https://api.dev.runwayml.com/v1/image_to_video",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "X-Runway-Version": "2024-09-13",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        promptImage: imageUrl,
+        seed: Math.floor(Math.random() * 1000000000),
+        model: "gen3a_turbo",
+        promptText: "Generate a video",
+        watermark: false,
+        duration: 5,
+        ratio: "16:9",
+      }),
+    }
+  );
+
+  const result = await response.json();
+  if (!response.ok) {
+    throw new Error(result.message || "Failed to start video generation");
+  }
+  return result.id;
+}
+
+async function pollForCompletion(taskId, apiKey) {
+  const response = await fetch(
+    `https://api.dev.runwayml.com/v1/tasks/${taskId}`,
+    {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "X-Runway-Version": "2024-09-13",
+      },
+    }
+  );
+
+  const result = await response.json();
+  if (!response.ok) {
+    throw new Error(result.message || "Failed to check task status");
+  }
+
+  if (result.status === "SUCCEEDED") {
+    return result.output[0];
+  } else if (result.status === "FAILED") {
+    throw new Error("Video generation failed");
+  } else {
+    throw new Error("still_processing");
+  }
+}

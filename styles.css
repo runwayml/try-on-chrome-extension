@@ -13,13 +13,11 @@ body {
   gap: 20px;
 }
 
-
 .header {
   display: flex;
   justify-content: center;
   align-items: center;
 }
-
 
 h2 {
   margin-top: 0;
@@ -27,14 +25,25 @@ h2 {
   border-bottom: 1px solid #ddd;
 }
 
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .section-header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .section-header h2 {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.section-header p {
   margin: 0;
   padding: 0;
   border: none;
@@ -148,6 +157,16 @@ h2 {
   background-color: #555;
 }
 
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+  box-shadow: none;
+}
+
+.btn:disabled:hover {
+  background-color: #cccccc;
+}
+
 .btn-secondary {
   background-color: #f0f0f0;
   color: #666;
@@ -204,4 +223,4 @@ h2 {
 .is-loading img {
   opacity: 0.7;
   filter: grayscale(30%);
-} 
+}

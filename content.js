@@ -1,22 +1,14 @@
-// Empty for now, but required to meet manifest "content_scripts" requirement
-
-console.log("[Runway Virtual Try On – Content] Content script loaded");
-
 // Listen for messages from the background script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log("[Runway Virtual Try On – Content] Received message:", message.action);
-  
   if (message.action === "processImage") {
     processImage(message.imageUrl)
-      .then(result => {
-        console.log("[Runway Virtual Try On – Content] Image processing completed");
+      .then((result) => {
         sendResponse(result);
       })
-      .catch(error => {
-        console.error("[Runway Virtual Try On – Content] Error:", error);
+      .catch((error) => {
         sendResponse({ success: false, error: error.message });
       });
-    
+
     // Return true to indicate we will send a response asynchronously
     return true;
   }
@@ -25,87 +17,94 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // Process the image
 async function processImage(imageUrl) {
   try {
-    console.log("[Runway Virtual Try On – Content] Processing image");
-    
     // Request the image from the background script
-    const response = await new Promise(resolve => {
+    const response = await new Promise((resolve) => {
       chrome.runtime.sendMessage(
         { action: "fetchImage", imageUrl: imageUrl },
         resolve
       );
     });
-    
+
     if (!response.success) {
       throw new Error("Failed to fetch image: " + response.error);
     }
-    
+
     // Load image into an Image element
     const img = await loadImage(response.imageData);
-    console.log("[Runway Virtual Try On – Content] Image loaded with dimensions:", img.width, "x", img.height);
-    
+
     // Create a unique ID for the image and add it to the DOM
     const imageId = "face-detection-image-" + Date.now();
     img.id = imageId;
     img.style.display = "none";
     document.body.appendChild(img);
-    
+
     // Inject libraries
-    await injectLibrary(chrome.runtime.getURL("vendor/tf.min.js"), "tensorflow-script");
-    await injectLibrary(chrome.runtime.getURL("vendor/face-detection.js"), "face-detection-script");
-    await injectLibrary(chrome.runtime.getURL("lib/face-detector.js"), "face-detector-script");
-    
+    await injectLibrary(
+      chrome.runtime.getURL("vendor/tf.min.js"),
+      "tensorflow-script"
+    );
+    await injectLibrary(
+      chrome.runtime.getURL("vendor/face-detection.js"),
+      "face-detection-script"
+    );
+    await injectLibrary(
+      chrome.runtime.getURL("lib/face-detector.js"),
+      "face-detector-script"
+    );
+
     // Wait for libraries to initialize
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
     // Set up listener for results
     const result = await new Promise((resolve, reject) => {
       // Set up window message listener
       const messageListener = (event) => {
-        if (event.data && event.data.type === 'CANVAS_RESULT') {
-          window.removeEventListener('message', messageListener);
-          
+        if (event.data && event.data.type === "CANVAS_RESULT") {
+          window.removeEventListener("message", messageListener);
+
           if (event.data.success) {
             resolve({
               success: true,
               facesFound: event.data.facesFound,
               replacedCount: event.data.replacedCount,
-              processedImageData: event.data.processedImageData
+              processedImageData: event.data.processedImageData,
             });
           } else {
             reject(new Error(event.data.error));
           }
         }
       };
-      
-      window.addEventListener('message', messageListener);
-      
+
+      window.addEventListener("message", messageListener);
+
       // Send message to trigger face detection
-      window.postMessage({
-        type: 'CANVAS_PROCESS',
-        imageId: imageId,
-        originalUrl: imageUrl
-      }, '*');
-      
+      window.postMessage(
+        {
+          type: "CANVAS_PROCESS",
+          imageId: imageId,
+          originalUrl: imageUrl,
+        },
+        "*"
+      );
+
       // Set timeout to prevent hanging
       setTimeout(() => {
-        window.removeEventListener('message', messageListener);
+        window.removeEventListener("message", messageListener);
         reject(new Error("Face detection timed out"));
       }, 30000);
     });
-    
+
     // Clean up the image element
     if (document.getElementById(imageId)) {
       document.getElementById(imageId).remove();
     }
-    
-    return { 
-      success: true, 
-      replacedCount: result.replacedCount, 
-      processedImageData: result.processedImageData 
+
+    return {
+      success: true,
+      replacedCount: result.replacedCount,
+      processedImageData: result.processedImageData,
     };
-    
   } catch (error) {
-    console.error("[Runway Virtual Try On – Content] Processing error:", error);
     throw error;
   }
 }
@@ -118,8 +117,8 @@ function injectLibrary(src, id) {
       resolve();
       return;
     }
-    
-    const script = document.createElement('script');
+
+    const script = document.createElement("script");
     script.id = id;
     script.src = src;
     script.onload = resolve;
