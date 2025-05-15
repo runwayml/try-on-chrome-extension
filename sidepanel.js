@@ -8,6 +8,7 @@
   const wardrobeContainer = document.getElementById("wardrobe-container");
   const itemTemplate = document.getElementById("wardrobe-item-template");
   const tryOnBtn = document.getElementById("try-on-btn");
+  const apiKeyInput = document.getElementById("api-key-input");
 
   // Listen for messages from background script about wardrobe updates
   chrome.runtime.onMessage.addListener(async (message) => {
@@ -21,9 +22,7 @@
       loadingItems.forEach((item) => item.remove());
 
       // Check storage to determine Try On button state
-      chrome.storage.local.get({ wardrobeImages: [] }, (result) => {
-        tryOnBtn.disabled = result.wardrobeImages.length === 0;
-      });
+      updateTryOnButtonState();
     } else if (message.action === "processingStarted") {
       // Clear existing wardrobe items first
       wardrobeContainer.innerHTML = "";
@@ -39,8 +38,8 @@
       // Check if we need to show the empty state
       if (wardrobeContainer.children.length === 0) {
         showEmptyState();
-        // Enable Try On button if there are no items
-        tryOnBtn.disabled = true;
+        // Update Try On button state
+        updateTryOnButtonState();
       }
 
       // Show error message
@@ -50,6 +49,39 @@
 
   // Remove image button click
   removeImageBtn.addEventListener("click", removeImage);
+
+  // API key input change handler
+  apiKeyInput.addEventListener("input", function () {
+    // Save the API key to storage
+    chrome.storage.local.set({ apiKey: this.value }, () => {
+      // Update Try On button state
+      updateTryOnButtonState();
+    });
+  });
+
+  // Helper function to update the Try On button state
+  function updateTryOnButtonState() {
+    chrome.storage.local.get(
+      { wardrobeImages: [], apiKey: "", userProfileImage: null },
+      (result) => {
+        // Enable the Try On button only if all required elements are present
+        tryOnBtn.disabled =
+          result.wardrobeImages.length === 0 ||
+          !result.apiKey ||
+          !result.userProfileImage;
+      }
+    );
+  }
+
+  // Load saved API key from storage
+  function loadApiKey() {
+    chrome.storage.local.get({ apiKey: "" }, (result) => {
+      apiKeyInput.value = result.apiKey;
+    });
+  }
+
+  // Call to load API key on startup
+  loadApiKey();
 
   // Prevent default drag behaviors
   ["dragenter", "dragover", "dragleave", "drop"].forEach((eventName) => {
@@ -81,9 +113,7 @@
   loadWardrobeItems();
 
   // Initialize the Try On button state
-  chrome.storage.local.get({ wardrobeImages: [] }, (result) => {
-    tryOnBtn.disabled = result.wardrobeImages.length === 0;
-  });
+  updateTryOnButtonState();
 
   function preventDefaults(e) {
     e.preventDefault();
@@ -141,12 +171,18 @@
     fileInput.value = ""; // Clear the file input
 
     // Remove user profile image from storage
-    chrome.storage.local.remove("userProfileImage");
+    chrome.storage.local.remove("userProfileImage", () => {
+      // Update Try On button state after removing image
+      updateTryOnButtonState();
+    });
   }
 
   // Save the uploaded profile image to storage
   function saveUploadedImage(imageData) {
-    chrome.storage.local.set({ userProfileImage: imageData });
+    chrome.storage.local.set({ userProfileImage: imageData }, () => {
+      // Update Try On button state after saving image
+      updateTryOnButtonState();
+    });
   }
 
   function loadWardrobeItems() {
@@ -184,8 +220,8 @@
 
     if (wardrobeImages.length === 0) {
       showEmptyState();
-      // Enable the Try On button when there are no pictures
-      tryOnBtn.disabled = true;
+      // Update the Try On button state
+      updateTryOnButtonState();
       return;
     }
 
@@ -196,23 +232,30 @@
 
     // Display each wardrobe item
     sortedImages.forEach((item) => {
-      createWardrobeItem(item.id, item.data);
+      createWardrobeItem(item.id, item);
     });
 
-    // Disable the Try On button when there are pictures
-    tryOnBtn.disabled = false;
+    // Update the Try On button state
+    updateTryOnButtonState();
   }
 
   // Create a wardrobe item using the template
-  function createWardrobeItem(id, imageData) {
+  function createWardrobeItem(id, itemData) {
     // Clone the template
     const templateContent = itemTemplate.content.cloneNode(true);
     const wardrobeItem = templateContent.querySelector(".wardrobe-item");
 
-    // Set item ID and image
+    // Set item ID and image - use original image for display
     wardrobeItem.id = id;
     const img = wardrobeItem.querySelector("img");
-    img.src = imageData;
+
+    // Use the original image if available, or the processed image as fallback
+    img.src = itemData.originalData || itemData.data || itemData;
+
+    // Store the processed image data as a data attribute for later use
+    if (itemData.processedData) {
+      wardrobeItem.dataset.processedImage = itemData.processedData;
+    }
 
     // Add delete button event listener
     const deleteBtn = wardrobeItem.querySelector(".delete-btn");
@@ -239,7 +282,11 @@
     const id = "loading-" + Date.now();
 
     // Create a new item
-    const loadingItem = createWardrobeItem(id, imageUrl);
+    const loadingItem = createWardrobeItem(id, {
+      // Use the same image URL for both original and loading display
+      originalData: imageUrl,
+      data: imageUrl,
+    });
 
     // Add loading state
     loadingItem.classList.add("is-loading");
@@ -264,15 +311,6 @@
       overlay.appendChild(loadingText);
     }
 
-    // Start the loading animation
-    loadingText.textContent = "Processing image...";
-    const updateInterval = setInterval(() => {
-      loadingText.textContent = `Processing image...`;
-    }, 1000);
-
-    // Store the interval ID to clear it if needed
-    loadingItem.dataset.intervalId = updateInterval;
-
     return loadingItem;
   }
 
@@ -290,16 +328,250 @@
         // Display the updated wardrobe
         displayWardrobeItems(wardrobeImages);
 
-        // Enable try on button if all images have been deleted
-        if (wardrobeImages.length === 0) {
-          tryOnBtn.disabled = true;
-        }
+        // Update Try On button state
+        updateTryOnButtonState();
       });
     });
   }
 
   tryOnBtn.addEventListener("click", () => {
-    // @todo add API call to Runway
-    console.log("Try On button clicked");
+    // Get API key and wardrobe images
+    chrome.storage.local.get(
+      { apiKey: "", wardrobeImages: [], userProfileImage: null },
+      async (result) => {
+        if (
+          !result.apiKey ||
+          result.wardrobeImages.length === 0 ||
+          !result.userProfileImage
+        ) {
+          return;
+        }
+
+        // Get the first wardrobe item
+        const wardrobeItem = result.wardrobeImages[0];
+
+        // Use the processed image for Try On (with white square)
+        const processedImageData =
+          wardrobeItem.processedData || wardrobeItem.data;
+
+        // Create tryOnData object for reference
+        const tryOnData = {
+          profilePic: result.userProfileImage.split(",")[1],
+          wardrobeImage: processedImageData.split(",")[1],
+          apiKey: result.apiKey,
+        };
+
+        // Use the template to create the try-on result container
+        const tryOnTemplate = document.getElementById("try-on-result-template");
+        const tryOnResultContainer = tryOnTemplate.content
+          .cloneNode(true)
+          .querySelector(".try-on-result");
+
+        // Set the processed image as the initial preview
+        const resultImage = tryOnResultContainer.querySelector(".result-image");
+        resultImage.src = processedImageData;
+
+        // Create a status element
+        const statusElement = document.createElement("div");
+        statusElement.id = "try-on-status";
+        statusElement.className = "loading-text";
+        statusElement.textContent = "Generating video...";
+
+        // Create loading spinner
+        const spinner = document.createElement("div");
+        spinner.className = "spinner";
+
+        // Create action button (cancels during generation, closes when complete)
+        const actionBtn = document.createElement("button");
+        actionBtn.className = "btn";
+        actionBtn.textContent = "Cancel";
+
+        // Add elements to the container
+        const tryOnContent =
+          tryOnResultContainer.querySelector(".try-on-content");
+
+        // Find the close button and remove it
+        const closeButton = tryOnResultContainer.querySelector(".close-btn");
+        if (closeButton) {
+          closeButton.remove();
+        }
+
+        // Add our elements to the content area - order matters for z-index and layout
+        tryOnContent.appendChild(spinner); // Add the spinner directly to try-on-content
+        tryOnContent.insertBefore(statusElement, tryOnContent.firstChild);
+        tryOnContent.appendChild(actionBtn);
+
+        // Add container to the document
+        document.body.appendChild(tryOnResultContainer);
+
+        // Make sure spinner is visible initially
+        spinner.style.display = "block";
+
+        // Handle video generation
+        let isGenerating = true;
+        let isCancelled = false;
+        let currentTaskId = null;
+        let currentBgRequestId = null;
+        const clientRequestId = Date.now().toString() + "-client";
+
+        // Set up the action button handler
+        actionBtn.addEventListener("click", () => {
+          if (isGenerating) {
+            // We're still generating - cancel the generation
+            isCancelled = true;
+
+            // Send cancel request to background script
+            chrome.runtime.sendMessage({
+              action: "cancelVideoGeneration",
+              clientRequestId: clientRequestId,
+              taskId: currentTaskId,
+              requestId: currentBgRequestId,
+            });
+
+            statusElement.textContent = "Generation cancelled";
+            spinner.style.display = "none"; // Hide spinner on cancel
+          }
+
+          // In either case, close the view
+          document.body.removeChild(tryOnResultContainer);
+        });
+
+        try {
+          // Start the video generation and get response with taskId and requestId
+          const response = await startVideoGeneration(
+            processedImageData,
+            result.apiKey,
+            clientRequestId
+          );
+          currentTaskId = response.taskId;
+          currentBgRequestId = response.requestId;
+
+          // Poll for completion if not cancelled by the user clicking the button
+          if (!isCancelled) {
+            try {
+              if (response.cancelled) {
+                // Already cancelled, nothing more to do
+                spinner.style.display = "none";
+                return;
+              }
+
+              // Only proceed with polling if we have a valid taskId
+              if (currentTaskId) {
+                const videoUrl = await pollForCompletion(
+                  currentTaskId,
+                  result.apiKey
+                );
+
+                // Update image with video
+                resultImage.src = videoUrl;
+                statusElement.textContent = "Video generated successfully!";
+
+                // Hide spinner and update button
+                spinner.style.display = "none";
+                actionBtn.textContent = "Close";
+                isGenerating = false;
+
+                // Save the generated video
+                saveGeneratedVideo(processedImageData, videoUrl);
+              }
+            } catch (error) {
+              if (!isCancelled) {
+                statusElement.textContent = `Error: ${error.message}`;
+                spinner.style.display = "none";
+                actionBtn.textContent = "Close";
+                isGenerating = false;
+              }
+            }
+          } else {
+            // Handle immediate cancellation
+            spinner.style.display = "none";
+          }
+        } catch (error) {
+          if (!isCancelled) {
+            statusElement.textContent = `Error: ${error.message}`;
+            spinner.style.display = "none";
+            actionBtn.textContent = "Close";
+            isGenerating = false;
+          }
+        }
+      }
+    );
   });
+
+  // Function to start video generation
+  async function startVideoGeneration(imageUrl, apiKey, clientRequestId) {
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage(
+        { action: "startVideoGeneration", imageUrl, apiKey, clientRequestId },
+        (response) => {
+          if (response.success) {
+            resolve({
+              taskId: response.taskId,
+              requestId: response.requestId,
+            });
+          } else {
+            if (response.aborted) {
+              // This was a cancellation, resolve with cancelled: true and any requestId background sent
+              resolve({ cancelled: true, requestId: response.requestId });
+            } else {
+              reject(new Error(response.error));
+            }
+          }
+        }
+      );
+    });
+  }
+
+  // Function to poll for completion
+  async function pollForCompletion(taskId, apiKey) {
+    // Poll with a 2-second interval
+    const pollInterval = 2000;
+
+    while (true) {
+      try {
+        const result = await new Promise((resolve, reject) => {
+          chrome.runtime.sendMessage(
+            { action: "pollForCompletion", taskId, apiKey },
+            (response) => {
+              if (response.success) {
+                resolve(response.videoUrl);
+              } else if (response.aborted) {
+                reject(new Error("aborted"));
+              } else if (response.error === "still_processing") {
+                reject(new Error("still_processing"));
+              } else {
+                reject(new Error(response.error));
+              }
+            }
+          );
+        });
+
+        // If we get here, the video is ready
+        return result;
+      } catch (error) {
+        if (error.message === "still_processing") {
+          // Wait and try again
+          await new Promise((resolve) => setTimeout(resolve, pollInterval));
+        } else if (error.message === "aborted") {
+          throw new Error("Cancelled");
+        } else {
+          // Real error, propagate it
+          throw error;
+        }
+      }
+    }
+  }
+
+  // Function to save generated video
+  function saveGeneratedVideo(imageUrl, videoUrl) {
+    chrome.storage.local.get({ generatedVideos: [] }, (result) => {
+      const videos = result.generatedVideos || [];
+      videos.push({
+        imageUrl,
+        videoUrl,
+        timestamp: Date.now(),
+      });
+      chrome.storage.local.set({ generatedVideos: videos });
+    });
+  }
 })();

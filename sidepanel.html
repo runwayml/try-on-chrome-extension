@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <title>Runway Virtual Try On</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <div class="container">
@@ -37,12 +37,29 @@
           <div class="empty-wardrobe">No processed images yet</div>
         </div>
       </div>
-      
+
+      <div class="section">
+        <div class="section-header">
+          <h2>Step 3:</h2>
+          <p>Enter your Runway API Key</p>
+        </div>
+        <div class="form-group">
+          <input
+            type="text"
+            id="api-key-input"
+            placeholder="Enter your API key"
+          />
+          <p class="helper-text">
+            Don't have an API key?
+            <a href="https://dev.runwayml.com/" target="_blank">Get one here</a>
+          </p>
+        </div>
+      </div>
+
       <div class="footer">
         <button class="btn" id="try-on-btn">Try On</button>
       </div>
     </div>
-
 
     <!-- Templates -->
     <template id="wardrobe-item-template">
@@ -51,7 +68,18 @@
         <div class="delete-btn"></div>
         <div class="loading-overlay" style="display: none">
           <div class="spinner"></div>
-          <div class="loading-text">Processing image...</div>
+          <div class="loading-text">Loading, please wait...</div>
+        </div>
+      </div>
+    </template>
+
+    <!-- Try On Result Template -->
+    <template id="try-on-result-template">
+      <div class="try-on-result">
+        <div class="try-on-content">
+          <img class="result-image" src="" alt="Try On Result" />
+          <!-- Note: We'll remove this button and add our own in JavaScript -->
+          <button class="btn close-btn">Close</button>
         </div>
       </div>
     </template>

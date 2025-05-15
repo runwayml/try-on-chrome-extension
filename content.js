@@ -1,3 +1,6 @@
+// Global variable to store the original image data
+let lastOriginalImageData = null;
+
 // Listen for messages from the background script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "processImage") {
@@ -10,6 +13,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       });
 
     // Return true to indicate we will send a response asynchronously
+    return true;
+  } else if (message.action === "getOriginalImage") {
+    // Return the saved original image data if available
+    if (lastOriginalImageData) {
+      sendResponse({ success: true, originalImageData: lastOriginalImageData });
+    } else {
+      sendResponse({ success: false, error: "No original image available" });
+    }
     return true;
   }
 });
@@ -28,6 +39,9 @@ async function processImage(imageUrl) {
     if (!response.success) {
       throw new Error("Failed to fetch image: " + response.error);
     }
+
+    // Store the original image data
+    lastOriginalImageData = response.imageData;
 
     // Load image into an Image element
     const img = await loadImage(response.imageData);
@@ -103,6 +117,7 @@ async function processImage(imageUrl) {
       success: true,
       replacedCount: result.replacedCount,
       processedImageData: result.processedImageData,
+      originalImageData: lastOriginalImageData,
     };
   } catch (error) {
     throw error;
