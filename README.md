@@ -1,3 +1,5 @@
+[![Demo](demo-gif.gif)](demo-gif.gif)
+
 # Runway API Try On Chrome Extension
 
 This Chrome extension connects to the Gen-4 Image API, allowing you to virtually try on clothing by uploading reference images of both yourself and desired outfits.
@@ -12,7 +14,7 @@ This Chrome extension connects to the Gen-4 Image API, allowing you to virtually
     Open Google Chrome and navigate to `chrome://extensions`.
 3.  **Enable Developer Mode:**
     In the top right corner of the Extensions page, toggle the **Developer mode** switch to the **on** position.
-3.  **Load Unpacked Extension:**
+4.  **Load Unpacked Extension:**
     Click the **Load unpacked** button that appears.
     Navigate to the directory where you cloned the repository and select the `extension` folder.
 

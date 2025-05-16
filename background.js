@@ -1,5 +1,6 @@
 const RUNWAY_API_URL = 'https://api.dev.runwayml.com'
 
+
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
     id: "try-on-runway",
@@ -15,6 +16,13 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === "try-on-runway") {
     // Open the side panel
     chrome.sidePanel.open({ tabId: tab.id });
+
+    // Inject the content script first
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      files: ["content.js"]
+    });
+
 
     // Wait for next tick to ensure side panel is ready
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -363,7 +371,7 @@ async function startGeneration(profileImage, imageUrl, apiKey, signal) {
         body: JSON.stringify({
           promptText: "IMG_1 wearing IMG_2",
           model: "gen4_image",
-          ratio: "1088:1456", // 3:4
+          ratio: "1080:1440", // 3:4
           referenceImages: [
             {
               uri: profileImage,
