@@ -354,13 +354,6 @@
         const processedImageData =
           wardrobeItem.processedData || wardrobeItem.data;
 
-        // Create tryOnData object for reference
-        const tryOnData = {
-          profilePic: result.userProfileImage.split(",")[1],
-          wardrobeImage: processedImageData.split(",")[1],
-          apiKey: result.apiKey,
-        };
-
         // Use the template to create the try-on result container
         const tryOnTemplate = document.getElementById("try-on-result-template");
         const tryOnResultContainer = tryOnTemplate.content
@@ -369,13 +362,13 @@
 
         // Set the processed image as the initial preview
         const resultImage = tryOnResultContainer.querySelector(".result-image");
-        resultImage.src = processedImageData;
+        // resultImage.src = processedImageData;
 
         // Create a status element
         const statusElement = document.createElement("div");
         statusElement.id = "try-on-status";
         statusElement.className = "loading-text";
-        statusElement.textContent = "Generating video...";
+        statusElement.textContent = "Generating your image...";
 
         // Create loading spinner
         const spinner = document.createElement("div");
@@ -407,7 +400,7 @@
         // Make sure spinner is visible initially
         spinner.style.display = "block";
 
-        // Handle video generation
+        // Handle generation
         let isGenerating = true;
         let isCancelled = false;
         let currentTaskId = null;
@@ -422,7 +415,7 @@
 
             // Send cancel request to background script
             chrome.runtime.sendMessage({
-              action: "cancelVideoGeneration",
+              action: "cancelGeneration",
               clientRequestId: clientRequestId,
               taskId: currentTaskId,
               requestId: currentBgRequestId,
@@ -437,8 +430,9 @@
         });
 
         try {
-          // Start the video generation and get response with taskId and requestId
-          const response = await startVideoGeneration(
+          // Start the generation and get response with taskId and requestId
+          const response = await startGeneration(
+            result.userProfileImage,
             processedImageData,
             result.apiKey,
             clientRequestId
@@ -457,14 +451,15 @@
 
               // Only proceed with polling if we have a valid taskId
               if (currentTaskId) {
-                const videoUrl = await pollForCompletion(
+                const imageUrl = await pollForCompletion(
                   currentTaskId,
                   result.apiKey
                 );
 
-                // Update image with video
-                resultImage.src = videoUrl;
-                statusElement.textContent = "Video generated successfully!";
+                // Update image 
+                resultImage.src = imageUrl;
+                resultImage.style.display = "block";
+                statusElement.textContent = "Image generated successfully!";
 
                 // Hide spinner and update button
                 spinner.style.display = "none";
@@ -472,7 +467,7 @@
                 isGenerating = false;
 
                 // Save the generated video
-                saveGeneratedVideo(processedImageData, videoUrl);
+                saveGeneratedVideo(processedImageData, imageUrl);
               }
             } catch (error) {
               if (!isCancelled) {
@@ -499,10 +494,10 @@
   });
 
   // Function to start video generation
-  async function startVideoGeneration(imageUrl, apiKey, clientRequestId) {
+  async function startGeneration(profileImage, imageUrl, apiKey, clientRequestId) {
     return new Promise((resolve, reject) => {
       chrome.runtime.sendMessage(
-        { action: "startVideoGeneration", imageUrl, apiKey, clientRequestId },
+        { action: "startGeneration", profileImage, imageUrl, apiKey, clientRequestId },
         (response) => {
           if (response.success) {
             resolve({
@@ -534,7 +529,7 @@
             { action: "pollForCompletion", taskId, apiKey },
             (response) => {
               if (response.success) {
-                resolve(response.videoUrl);
+                resolve(response.imageUrl);
               } else if (response.aborted) {
                 reject(new Error("aborted"));
               } else if (response.error === "still_processing") {

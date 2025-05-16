@@ -1,3 +1,5 @@
+const RUNWAY_API_URL = 'https://api.dev.runwayml.com'
+
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
     id: "try-on-runway",
@@ -160,8 +162,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  // Handle video generation requests
-  if (message.action === "startVideoGeneration") {
+  // Handle image generation requests
+  if (message.action === "startGeneration") {
     // Create a new AbortController for this request
     const controller = new AbortController();
 
@@ -176,7 +178,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       clientRequestId: message.clientRequestId, // Store clientRequestId from message
     });
 
-    startVideoGeneration(message.imageUrl, message.apiKey, controller.signal) // This is the async API call wrapper
+    startGeneration(
+      message.profileImage,
+      message.imageUrl,
+      message.apiKey,
+      controller.signal
+    ) // This is the async API call wrapper
       .then((apiTaskId) => {
         // Update the request entry with the taskId
         const request = requests.get(bgRequestId);
@@ -213,7 +220,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  // Handle polling for video generation results
+  // Handle polling for generation results
   if (message.action === "pollForCompletion") {
     // Find the request by taskId
     let requestEntry = null;
@@ -241,10 +248,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       message.apiKey,
       requestEntry.controller.signal
     )
-      .then((videoUrl) => {
+      .then((imageUrl) => {
         // Clean up the controller when done
         requests.delete(requestId);
-        sendResponse({ success: true, videoUrl });
+        sendResponse({ success: true, imageUrl });
       })
       .catch((error) => {
         if (error.name === "AbortError") {
@@ -266,7 +273,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   // Add handler for cancellation
-  if (message.action === "cancelVideoGeneration") {
+  if (message.action === "cancelGeneration") {
     const { taskId, requestId: messageBgRequestId, clientRequestId } = message;
     let processed = false;
     let keyToDeleteFromMap = null;
@@ -327,7 +334,7 @@ function blobToBase64(blob) {
   });
 }
 
-async function startVideoGeneration(imageUrl, apiKey, signal) {
+async function startGeneration(profileImage, imageUrl, apiKey, signal) {
   try {
     // Make sure the signal is not aborted before starting
     if (signal && signal.aborted) {
@@ -345,22 +352,24 @@ async function startVideoGeneration(imageUrl, apiKey, signal) {
     }
 
     const response = await fetch(
-      "https://api.dev.runwayml.com/v1/image_to_video",
+      `${RUNWAY_API_URL}/v1/text_to_image`,
       {
         method: "POST",
         headers: {
           Authorization: `Bearer ${apiKey}`,
-          "X-Runway-Version": "2024-09-13",
+          "X-Runway-Version": "2024-11-06",
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          promptImage: imageUrl,
-          seed: Math.floor(Math.random() * 1000000000),
-          model: "gen3a_turbo",
-          promptText: "Generate a video",
-          watermark: false,
-          duration: 5,
-          ratio: "16:9",
+          promptText: "IMG_1 wearing IMG_2",
+          model: "gen4_image",
+          ratio: "1088:1456", // 3:4
+          referenceImages: [
+            {
+              uri: profileImage,
+            },
+            { uri: imageUrl },
+          ],
         }),
         signal: combinedSignal, // Use our combined signal
       }
@@ -373,7 +382,7 @@ async function startVideoGeneration(imageUrl, apiKey, signal) {
 
     const result = await response.json();
     if (!response.ok) {
-      throw new Error(result.message || "Failed to start video generation");
+      throw new Error(result.message || "Failed to start generation");
     }
     return result.id;
   } catch (error) {
@@ -404,7 +413,7 @@ async function pollForCompletion(taskId, apiKey, signal) {
     }
 
     const response = await fetch(
-      `https://api.dev.runwayml.com/v1/tasks/${taskId}`,
+      `${RUNWAY_API_URL}/v1/tasks/${taskId}`,
       {
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -427,7 +436,7 @@ async function pollForCompletion(taskId, apiKey, signal) {
     if (result.status === "SUCCEEDED") {
       return result.output[0];
     } else if (result.status === "FAILED") {
-      throw new Error("Video generation failed");
+      throw new Error("Generation failed");
     } else {
       throw new Error("still_processing");
     }
