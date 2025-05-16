@@ -1,6 +1,6 @@
 # Runway API Try On Chrome Extension
 
-This Chrome extension allows you to virtually try on clothes using images.
+This Chrome extension connects to the Gen-4 Image API, allowing you to virtually try on clothing by uploading reference images of both yourself and desired outfits.
 
 ## Installation
 
@@ -11,16 +11,16 @@ This Chrome extension allows you to virtually try on clothes using images.
 2.  **Open Chrome Extensions:**
     Open Google Chrome and navigate to `chrome://extensions`.
 3.  **Enable Developer Mode:**
-    In the top right corner of the Extensions page, toggle the "Developer mode" switch to the on position.
+    In the top right corner of the Extensions page, toggle the **Developer mode** switch to the **on** position.
 3.  **Load Unpacked Extension:**
-    Click the "Load unpacked" button that appears.
+    Click the **Load unpacked** button that appears.
     Navigate to the directory where you cloned the repository and select the `extension` folder.
 
-The extension should now be installed and visible in your Chrome extensions list.
+The extension will now be installed and visible in your Chrome extensions list.
 
 ## Obtaining a Runway API Key
 
-To use the image generation features, you will need a Runway API key (you can get one at [https://dev.runwayml.com/](https://dev.runwayml.com/))
+To use the image generation features, you will need a [Runway API account](https://dev.runwayml.com/), key, and credits. Set this up by following the [Runway API Quickstart](https://docs.dev.runwayml.com/guides/quickstart/) guide.
 
 ## Learn More
 
