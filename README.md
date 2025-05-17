@@ -8,7 +8,7 @@ This Chrome extension connects to the Gen-4 Image API, allowing you to virtually
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/your-username/try-on-chrome-extension.git
+    git clone https://github.com/runwayml/try-on-chrome-extension.git
     ```
 2.  **Open Chrome Extensions:**
     Open Google Chrome and navigate to `chrome://extensions`.
@@ -26,4 +26,4 @@ To use the image generation features, you will need a [Runway API account](https
 
 ## Learn More
 
-- [Runway API Documentation](https://docs.runwayml.com/docs/overview)
+- [Runway API Documentation](https://docs.dev.runwayml.com/)
