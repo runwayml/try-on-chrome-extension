@@ -72,16 +72,19 @@ async function processImage(imageUrl) {
     // Set up listener for results
     const result = await new Promise((resolve, reject) => {
       // Set up window message listener
-      const messageListener = (event) => {
+      const messageListener = async (event) => {
         if (event.data && event.data.type === "CANVAS_RESULT") {
           window.removeEventListener("message", messageListener);
 
           if (event.data.success) {
+            // resize the image so that it will be less than 3mb 
+            const resizedImageData = await resizeImage(event.data.processedImageData);
+             
             resolve({
               success: true,
               facesFound: event.data.facesFound,
               replacedCount: event.data.replacedCount,
-              processedImageData: event.data.processedImageData,
+              processedImageData: resizedImageData,
             });
           } else {
             reject(new Error(event.data.error));
@@ -150,5 +153,47 @@ function loadImage(url) {
     img.onerror = () => reject(new Error("Failed to load image"));
     img.crossOrigin = "anonymous"; // Important for canvas operations
     img.src = url;
+  });
+}
+
+// Resize an image (data URL) to ensure it's below 3MB and max width/height (optional)
+function resizeImage(dataUrl, maxSizeMB = 3, maxWidth = 2048, maxHeight = 2048) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = function () {
+      let [width, height] = [img.width, img.height];
+
+      // Calculate new dimensions if needed
+      if (width > maxWidth || height > maxHeight) {
+        const aspect = width / height;
+        if (width > height) {
+          width = maxWidth;
+          height = Math.round(maxWidth / aspect);
+        } else {
+          height = maxHeight;
+          width = Math.round(maxHeight * aspect);
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+
+      // Try different quality levels to get under maxSizeMB
+      let quality = 0.92;
+      let resizedDataUrl = canvas.toDataURL('image/jpeg', quality);
+
+      // Reduce quality if needed to get under maxSizeMB
+      while (resizedDataUrl.length / 1024 / 1024 > maxSizeMB && quality > 0.5) {
+        quality -= 0.05;
+        resizedDataUrl = canvas.toDataURL('image/jpeg', quality);
+      }
+
+      resolve(resizedDataUrl);
+    };
+    img.onerror = () => reject(new Error("Failed to load image for resizing"));
+    img.src = dataUrl;
   });
 }
