@@ -22,7 +22,7 @@ The extension will now be installed and visible in your Chrome extensions list.
 
 ## Obtaining a Runway API Key
 
-To use the image generation features, you will need a [Runway API account](https://dev.runwayml.com/), key, and credits. Set this up by following the [Runway API Quickstart](https://docs.dev.runwayml.com/guides/quickstart/) guide.
+To use the image generation features, you will need a [Runway API account](https://dev.runwayml.com/), key, and credits. Set this up by following the [Runway API Quickstart](https://docs.dev.runwayml.com/guides/using-the-api/) guide.
 
 ## Learn More
 
